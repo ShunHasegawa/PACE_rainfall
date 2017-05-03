@@ -1,0 +1,134 @@
+---
+title: "Livestock project -preliminary analysis-"
+author: "Shun Hasegawa"
+date: "03/05/2017"
+output: 
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(plyr)
+library(dplyr)
+library(car)
+library(ggplot2)
+library(tidyr)
+library(ggmap)
+library(pander)
+load("../Output/Data/all_image.RData")
+
+```
+
+## Introduction
+Here, I show the preliminary analysis of rainfall patterns for the livestock project. Firstly, I picked up 13 focal sites which had average annul precipitation = 800 mm ± 20% from SA, VIC and NSW as below.
+
+```{r site_map, echo=FALSE, fig.width=6, fig.height=5, fig.cap="Location of analysed sites."}
+mapPoints
+```
+
+
+
+```{r ann_rain_tbl, echo=FALSE, results='asis'}
+set.alignment(c("right", rep("center", 3)))
+pander(ann_smmry, caption = "Avg. annual precipitation of the focal sites over the past 100 years with standard deviation (std.).")
+```
+
+Then, I assessed extreme dry events in each site for winter, spring and winter & spring (W_S). The extreme events were identified as years with seasonal precipitation falling into less than **5%** quantile of the overall distribution of seasonal precipitation over the past 100 years. 
+
+```{r rain_dist_fig, echo=FALSE, fig.width=6, fig.height=4, fig.cap="Seasonal rain distribution. Years that experienced extreme evets falls less than 5% quantile, shown with red."}
+p_rain
+```
+
+## Characterisation of rainfall patters in extreme years
+I characterized the rainfall pattern during extremely dry years using indices below.
+
+* Avg. daily rain (Rd)
+* Max daily rain
+* No. of dry days
+* No. of wet days
+* Max no. of contiguous duration of dry days
+* Max no. of contiguous duration of wet days
+* No. of days of each rain class
+    + class0 (Rd < 1 mm)
+    + class1 (1 < Rd $\leq$ 5 mm)
+    + class2 (5 < Rd $\leq$ 20 mm)
+    + class3 (Rd > 20 mm)
+
+Below, I summarize multi-sites data and demonstrate the magnitude of extreme events given as $(x_e-x_a)/x_a$, where $x_e$ and $x_a$ are average values in extreme years and across all years, respectively.
+
+```{r mag_extreme_tbl, echo=FALSE, results='asis'}
+set.alignment(c("right", rep("center", 3)))
+mult_site_smmry_ed <- mult_site_smmry
+names(mult_site_smmry_ed) <- gsub("m_", "m\n", names(mult_site_smmry_ed))
+pander(mult_site_smmry_ed, split.cells = c(30, rep(10, 4)))
+```
+
+
+Overall, during extremely dry years, rainfall decreased by 68, 75 and 64% in winter, spring and winter & spring, respectively. This may have been driven by extended periods of continuous dry days and a lack of large rainfall (class2 and class3 rain). Below, I demonstrate the distribution of each index and where extreme events fall.
+
+
+### Max daily rain
+```{r max_rain_fig, echo=FALSE, fig.width=6, fig.height=4}
+p_max_rain
+```
+
+
+### No. of dry days
+```{r no_drydays_fig, echo=FALSE, fig.width=6, fig.height=4}
+p_n_dryday
+```
+
+### No. of wet days
+```{r no_wetdays_fig, echo=FALSE, fig.width=6, fig.height=4}
+p_n_wetday
+```
+
+
+### Max no. of contiguous duration of dry days
+```{r no_contig_dry_fig, echo=FALSE, fig.width=6, fig.height=4}
+p_n_contig_dry
+```
+
+
+### Max no. of contiguous duration of wet days
+```{r no_contig_wet_fig, echo=FALSE, fig.width=6, fig.height=4}
+p_n_contig_wet
+```
+
+
+### No. of days of each rain class
+```{r rainclass_fig, echo=FALSE, fig.width=6, fig.height=7}
+p_rainclass
+```
+
+## Summay of focal sites
+The indices above are summarised in a table for each site as below. 
+
+```{r site_tbl, echo=FALSE, results='asis'}
+l <- dlply(ann_rain_800_season_tbl, .(Site.name),  function(x){
+  site <- unique(x[, 1])
+  print(site)
+  d <- x[, -1]
+  set.alignment("right")
+  names(d) <- gsub("_", "\n", names(d))
+  pander(d, split.cells = c(15, rep(5, 7)), caption = site)
+})
+
+l[[1]]
+l[[2]]
+l[[3]]
+l[[4]]
+l[[5]]
+l[[6]]
+l[[7]]
+l[[8]]
+l[[9]]
+l[[10]]
+l[[11]]
+l[[12]]
+l[[13]]
+
+```
+
+
