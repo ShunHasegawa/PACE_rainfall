@@ -106,6 +106,16 @@ ann_rain_800_season_smmry <- dlply(filter(ann_rain_800_sw, season %in% c("spring
     select(Year, seas_extreme)
   
   
+  ## wet day rainfall
+  d1_wetrain_avg <- d1 %>% 
+    filter(rain > 0) %>% 
+    group_by(Year) %>% 
+    summarise(wetday_rain = mean(rain)) %>% 
+    ungroup() %>% 
+    left_join(d1_extr) %>% 
+    mutate(seas_extreme = ifelse(is.na(seas_extreme), FALSE, seas_extreme))
+  
+  
   ## frequency of each rain class
   d1_rainclass <- d1 %>%
     group_by(Year, rain_class) %>% 
@@ -178,6 +188,23 @@ ann_rain_800_season_smmry <- dlply(filter(ann_rain_800_sw, season %in% c("spring
     arrange(unit, variable)
   
   
+  # wet day rain
+  d1_wetrain_avg_all <- d1_wetrain_avg %>% 
+    summarise_each(funs(avg. = mean, std. = sd), wetday_rain = wetday_rain) %>%
+    mutate(type = "overall")
+  
+  d1_wetrain_avg_extr <- d1_wetrain_avg %>% 
+    filter(seas_extreme) %>% 
+    summarise_each(funs(avg. = mean, std. = sd), wetday_rain = wetday_rain) %>%
+    mutate(type = "extreme")
+  
+  d1_wetrain_avg_smmry <- rbind(d1_wetrain_avg_all, d1_wetrain_avg_extr) %>% 
+    mutate_each(funs(as.character(round(., 2))), -type) %>% 
+    gather(key = variable, value, -type) %>% 
+    spread(key = type, value) %>% 
+    mutate(unit = "mm d-1")
+  
+  
   # rain class
   d1_rainclass_all <- d1_rainclass %>% 
     group_by(rain_class) %>% 
@@ -224,12 +251,14 @@ ann_rain_800_season_smmry <- dlply(filter(ann_rain_800_sw, season %in% c("spring
   
   
   # summary table
-  d1_smmry <- rbind.fill(d1_season_avg_smmry, d1_rainclass_smmry, d1_contig_day_smmry) %>% 
+  d1_smmry <- rbind.fill(d1_season_avg_smmry, d1_wetrain_avg_smmry, d1_rainclass_smmry, d1_contig_day_smmry) %>% 
     arrange(unit) %>% 
     bind_rows(n_all)
   
-  d1_list <- list(summary_tbl = d1_smmry, season_rain = d1_season_avg, 
-                  contig_day = d1_contig_day, rainclass = d1_rainclass)
+  
+  d1_list <- list(summary_tbl = d1_smmry, season_rain = d1_season_avg,
+                  wetday_rain = d1_wetrain_avg, contig_day = d1_contig_day, 
+                  rainclass = d1_rainclass)
   
   return(d1_list)
   
@@ -253,8 +282,8 @@ ann_rain_800_season_tbl <- ldply(ann_rain_800_season_smmry, function(x) x$summar
                                 "class0_std.", "class1_std.", "class2_std.", "class3_std.",
                                 "dry_d_avg.", "dry_max_contig_avg.", "wet_d_avg.", "wet_max_contig_avg.", 
                                 "dry_d_std.", "dry_max_contig_std.", "wet_d_std.", "wet_max_contig_std.",
-                                "seas_rain_avg.", "max_wet_avg.",
-                                "seas_rain_std.", "max_wet_std."),
+                                "wetday_rain_avg.", "seas_rain_avg.", "max_wet_avg.",
+                                "wetday_rain_std." ,"seas_rain_std.", "max_wet_std."),
                               c("Avg. no. class0 rain days", 
                                 "Avg. no. class1 rain days", 
                                 "Avg. no. class2 rain days", 
@@ -272,8 +301,10 @@ ann_rain_800_season_tbl <- ldply(ann_rain_800_season_smmry, function(x) x$summar
                                 "St. dev. of no. wet days",
                                 "St. dev. of max. no. contiguous duration of wet days",
                                 "Avg. wet day rain",
+                                "Avg. seasonal rain",
                                 "Avg. max wet day rain",
                                 "St. dev. wet day rain",
+                                "St. dev. seasonal rain",
                                 "St. dev. max wet day rain"))) %>% 
   filter(variable %in% c("Avg. no. class0 rain days", "Avg. no. class1 rain days", 
                          "Avg. no. class2 rain days", "Avg. no. class3 rain days",
@@ -281,26 +312,30 @@ ann_rain_800_season_tbl <- ldply(ann_rain_800_season_smmry, function(x) x$summar
                          "Avg. max. no. contiguous duration of dry days",
                          "Avg. max. no. contiguous duration of wet days",
                          "Avg. max wet day rain",
-                         "Avg. wet day rain", "St. dev. wet day rain"))
+                         "Avg. wet day rain", "St. dev. wet day rain",
+                         "Avg. seasonal rain"))
 
 
 
 # Figures -----------------------------------------------------------------
 
 
-all_season_rain         <- ldply(ann_rain_800_season_smmry, function(x) x$season_rain)
-all_season_rain_ext     <- filter(all_season_rain, seas_extreme)
+all_season_rain     <- ldply(ann_rain_800_season_smmry, function(x) x$season_rain)
+all_season_rain_ext <- filter(all_season_rain, seas_extreme)
 
-all_contig_day          <- ldply(ann_rain_800_season_smmry, function(x) x$contig_day)
-all_contig_day_ext      <- filter(all_contig_day, seas_extreme) 
+all_wetday_rain     <- ldply(ann_rain_800_season_smmry, function(x) x$wetday_rain)
+all_wetday_rain_ext <- filter(all_wetday_rain, seas_extreme)
 
-all_rainclass           <- ldply(ann_rain_800_season_smmry, function(x) x$rainclass) %>% 
+all_contig_day      <- ldply(ann_rain_800_season_smmry, function(x) x$contig_day)
+all_contig_day_ext  <- filter(all_contig_day, seas_extreme) 
+
+all_rainclass       <- ldply(ann_rain_800_season_smmry, function(x) x$rainclass) %>% 
   mutate(rain_class2 = factor(rain_class, labels = c("<1mm", "1-5mm", "5-20mm", ">20mm")))
-all_rainclass_ext       <- filter(all_rainclass, seas_extreme) 
+all_rainclass_ext   <- filter(all_rainclass, seas_extreme) 
 
 
 
-# . 1. rain ---------------------------------------------------------------
+# . 1. seasonal rain ---------------------------------------------------------------
 
 
 p_rain <- ggplot()+
@@ -311,7 +346,18 @@ p_rain <- ggplot()+
   theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
 
 
-# . 2. No. of wet days ----------------------------------------------------
+# . 2. wet day rain ---------------------------------------------------------------
+
+
+p_wetday_rain <- ggplot()+
+  geom_boxplot(data = all_wetday_rain, aes(x = Site.name, y = wetday_rain))+
+  geom_point(data = all_wetday_rain_ext, aes(x = Site.name, y = wetday_rain), col = "red")+
+  facet_wrap( ~ season) +
+  labs(y = expression(Wet~day~precipitation~(mm~d^'-1')), x = "Site") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
+
+
+# . 3. No. of wet days ----------------------------------------------------
 
 
 p_n_wetday <- ggplot()+
@@ -323,7 +369,7 @@ p_n_wetday <- ggplot()+
 
 
 
-# . 3. No. of dry days ----------------------------------------------------
+# . 4. No. of dry days ----------------------------------------------------
 
 
 p_n_dryday <- ggplot()+
@@ -335,7 +381,7 @@ p_n_dryday <- ggplot()+
 
 
 
-# . 4. Max No. of contiguous wet days -------------------------------------
+# . 5. Max No. of contiguous wet days -------------------------------------
 
 
 p_n_contig_wet <- ggplot()+
@@ -347,7 +393,7 @@ p_n_contig_wet <- ggplot()+
 
 
 
-# . 5. Max No. of contiguous dry days -------------------------------------
+# . 6. Max No. of contiguous dry days -------------------------------------
 
 
 p_n_contig_dry <- ggplot()+
@@ -359,7 +405,7 @@ p_n_contig_dry <- ggplot()+
 
 
 
-# . 6. Maximum wet day events ---------------------------------------------
+# . 7. Maximum wet day events ---------------------------------------------
 
 
 p_max_rain <- ggplot()+
@@ -371,7 +417,7 @@ p_max_rain <- ggplot()+
 
 
 
-# . 7. No. of days for each rainfall class --------------------------------
+# . 8. No. of days for each rainfall class --------------------------------
 
 
 p_rainclass <- ggplot()+

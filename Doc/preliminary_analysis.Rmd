@@ -43,7 +43,7 @@ p_rain
 ## Characterisation of rainfall patters in extreme years
 I characterized the rainfall pattern during extremely dry years using indices below.
 
-* Avg. daily rain (Rd)
+* Avg. wet day rain (Rd)
 * Max daily rain
 * No. of dry days
 * No. of wet days
@@ -66,6 +66,12 @@ pander(mult_site_smmry_ed, split.cells = c(30, rep(10, 4)))
 
 
 Overall, during extremely dry years, rainfall decreased by 68, 75 and 64% in winter, spring and winter & spring, respectively. This may have been driven by extended periods of continuous dry days and a lack of large rainfall (class2 and class3 rain). Below, I demonstrate the distribution of each index and where extreme events fall.
+
+
+### Wet day rain
+```{r wetday_rain_fig, echo=FALSE, fig.width=6, fig.height=4}
+p_wetday_rain
+```
 
 
 ### Max daily rain
