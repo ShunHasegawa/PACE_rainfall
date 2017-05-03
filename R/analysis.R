@@ -378,7 +378,7 @@ p_rainclass <- ggplot()+
   geom_boxplot(data = all_rainclass, aes(x = Site.name, y = no))+
   geom_point(data = all_rainclass_ext, aes(x = Site.name, y = no), col = "red")+
   facet_grid(rain_class2 ~ season, scale = "free_y") +
-  labs(y = expression(Frequency~(d~yr^'-1'), x = "Site")) +
+  labs(y = expression(Frequency~(d~yr^'-1')), x = "Site") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
 
   
@@ -408,8 +408,5 @@ mult_site_smmry <- ann_rain_800_season_tbl %>%
 
 
 save.image("Output/Data/all_image.RData")
-
-
-
 
   
