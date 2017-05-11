@@ -1,7 +1,7 @@
 ---
-title: "Livestock project -preliminary analysis-"
+title: "Livestock project -Secondary analysis (100 years)-"
 author: "Shun Hasegawa"
-date: "03/05/2017"
+date: "11/05/2017"
 output: 
   html_document:
     toc: true
@@ -30,8 +30,20 @@ mapPoints
 
 
 ```{r ann_rain_tbl, echo=FALSE, results='asis'}
-set.alignment(c("right", rep("center", 3)))
-pander(ann_smmry, caption = "Avg. annual precipitation of the focal sites over the past 100 years with standard deviation (std.).")
+l <- split(ann_snn_smmry, f = ann_snn_smmry$season)
+lp <- llply(names(l), function(x){
+  cap <- paste("Avg.", x, "precipitation of the focal sites over the past 100 years with standard deviation (std.) and coefficient of variance (cov.). The 1st to 5th driest years are also shown with rainfall and %reudction relative to the long-term averages.")
+  set.alignment("right")
+  pander(l[[x]][, -1], caption = cap, split.table = Inf, split.cells = Inf)
+})
+
+lp[[1]]
+lp[[2]]
+lp[[3]]
+lp[[4]]
+lp[[5]]
+lp[[6]]
+lp[[7]]
 ```
 
 Then, I assessed extreme dry events in each site for winter, spring and winter & spring (W_S). The extreme events were identified as years with seasonal precipitation falling into less than **5%** quantile of the overall distribution of seasonal precipitation over the past 100 years. 
