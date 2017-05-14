@@ -1,7 +1,7 @@
 ---
-title: "Livestock project -Secondary analysis (100 years)-"
+title: "Livestock project -Secondary analysis-"
 author: "Shun Hasegawa"
-date: "11/05/2017"
+date: "15/05/2017"
 output: 
   html_document:
     toc: true
@@ -21,36 +21,106 @@ load("../Output/Data/all_image.RData")
 ```
 
 ## Introduction
-Here, I show the preliminary analysis of rainfall patterns for the livestock project. Firstly, I picked up 13 focal sites which had average annul precipitation = 800 mm ± 20% from SA, VIC and NSW as below.
+Here, I show the analysis of rainfall patterns for the livestock project. Firstly, I picked up 13 focal sites which had average annul precipitation = 800 mm ± 20% over the past 100 years from SA, VIC and NSW as below.
 
 ```{r site_map, echo=FALSE, fig.width=6, fig.height=5, fig.cap="Location of analysed sites."}
 mapPoints
 ```
 
 
+### Annual and seasonal summary table (mm yr^-1^): annual, spring, summer, autumn, winter, May and June
 
-```{r ann_rain_tbl, echo=FALSE, results='asis'}
-l <- split(ann_snn_smmry, f = ann_snn_smmry$season)
-lp <- llply(names(l), function(x){
-  cap <- paste("Avg.", x, "precipitation of the focal sites over the past 100 years with standard deviation (std.) and coefficient of variance (cov.). The 1st to 5th driest years are also shown with rainfall and %reudction relative to the long-term averages.")
-  set.alignment("right")
-  pander(l[[x]][, -1], caption = cap, split.table = Inf, split.cells = Inf)
+```{r ann_rain_tbl_prepare, echo=FALSE, results='hide'}
+tbl_l <- llply(ann_smmry_l, function(y){
+  tbl <- ddply(y, .(season), function(x){
+    d <- x[, c(-1,-3)]
+    s <- as.character(unique(x$season))
+    s <- paste0("**", s, "**")
+    rbind(c(s, rep("", ncol(d) - 1)), d)
+  })
+  set.alignment("left")
+  ?pandoc.table.return
+  pander(tbl[-1], split.table = Inf, split.cells = Inf)
 })
 
-lp[[1]]
-lp[[2]]
-lp[[3]]
-lp[[4]]
-lp[[5]]
-lp[[6]]
-lp[[7]]
 ```
 
-Then, I assessed extreme dry events in each site for winter, spring and winter & spring (W_S). The extreme events were identified as years with seasonal precipitation falling into less than **5%** quantile of the overall distribution of seasonal precipitation over the past 100 years. 
-
-```{r rain_dist_fig, echo=FALSE, fig.width=6, fig.height=4, fig.cap="Seasonal rain distribution. Years that experienced extreme evets falls less than 5% quantile, shown with red."}
-p_rain
+#### 100 years
+```{r ann_rain_tbl_100, echo = FALSE, results='asis'}
+tbl_l$yr100
 ```
+
+<!-- #### 30 years -->
+<!-- ```{r ann_rain_tbl_30, echo = FALSE, results='asis'} -->
+<!-- tbl_l$yr30 -->
+<!-- ``` -->
+
+<!-- #### 10 years -->
+<!-- ```{r ann_rain_tbl_10, echo = FALSE, results='asis'} -->
+<!-- tbl_l$yr10 -->
+<!-- ``` -->
+
+
+
+## Seasonal extreme events
+Then, I assessed extreme dry events in each site for winter, spring, winter & spring (W_S), May and June. The extreme events were identified as years with the driest seasonal precipitation over the past 100, 30 and 10 years.
+
+```{r rain_dist_yr100_fig, echo=FALSE, fig.width=6, fig.height=4}
+p_rain$yr100
+```
+
+```{r rain_dist_yr30_fig, echo=FALSE, fig.width=6, fig.height=4}
+p_rain$yr30
+```
+
+```{r rain_dist_yr10_fig, echo=FALSE, fig.width=6, fig.height=4, fig.cap="Seasonal rain distribution. The driest year during each season is shown with red."}
+p_rain$yr10
+```
+
+
+## Autumn break
+Atumn break was defined as the first rain date bewteen **May** and **June** that had the total of **≥30mm** rainfall within the following 4 days (i.e. sum of **5 days**) followed by **≥20mm** rainfall within the subsequent **30 days**.  Percent quantiles of the autumn break date are shown in the table below for each site over the past 100, 30 and 10 years. The first day in May (1st May) is Day 1.
+
+### Summary table
+```{r autumnbreak_tbl, echo=FALSE, results='asis'}
+a_tbl <- dlply(autbreak_smmry, .(.id), function(x){
+  d <- x[, -2]
+  set.alignment("left")
+  pander(d, caption = as.character(unique(x$.id)))
+})
+
+a_tbl[[1]]
+a_tbl[[2]]
+a_tbl[[3]]
+```
+
+### Summary figure
+Autumn break dates are plotted against years as below.
+
+**Temporal change** in the autumn break date with a regression line. The 1-5th driest years are shown with colors and otherwise with grey.
+
+
+```{r autumnbreak_100yr_fig, echo=FALSE, results='asis',  fig.width=6, fig.height=7}
+fig_autbreak_scatter$yr100
+```
+
+```{r autumnbreak_30yr_fig, echo=FALSE, results='asis',  fig.width=6, fig.height=7}
+fig_autbreak_scatter$yr30+
+  theme(legend.position = "none")
+```
+
+```{r autumnbreak_10yr_fig, echo=FALSE, results='asis',  fig.width=6, fig.height=7}
+fig_autbreak_scatter$yr10+
+  theme(legend.position = "none")
+```
+
+**Distribution of autumn break dates**. The above results are summarised in a box-whisker plot as below.
+
+```{r autumnbreak_box_fig, echo=FALSE, results='asis', fig.width=6, fig.height=6}
+fig_autbreak_box+
+  theme(legend.position = "top")
+```
+
 
 ## Characterisation of rainfall patters in extreme years
 I characterized the rainfall pattern during extremely dry years using indices below.
@@ -67,70 +137,81 @@ I characterized the rainfall pattern during extremely dry years using indices be
     + class2 (5 < Rd $\leq$ 20 mm)
     + class3 (Rd > 20 mm)
 
+
 Below, I summarize multi-sites data and demonstrate the magnitude of extreme events given as $(x_e-x_a)/x_a$, where $x_e$ and $x_a$ are average values in extreme years and across all years, respectively.
+
+### Summary table
 
 ```{r mag_extreme_tbl, echo=FALSE, results='asis'}
 set.alignment(c("right", rep("center", 3)))
 mult_site_smmry_ed <- mult_site_smmry
-names(mult_site_smmry_ed) <- gsub("m_", "m\n", names(mult_site_smmry_ed))
-pander(mult_site_smmry_ed, split.cells = c(30, rep(10, 4)))
+mult_site_smmry_ed$.id <- factor(mult_site_smmry_ed$.id, levels = c("yr100", "yr30", "yr10"))
+names(mult_site_smmry_ed) <- gsub("mag[.]extrm_", "", names(mult_site_smmry_ed))
+
+mult_site_tbl <- ddply(mult_site_smmry_ed, .(.id), function(x){
+  id <- paste0("**", as.character(unique(x$.id)), "**")
+  toprow <- c(id, rep("", ncol(x) - 1))
+  rbind(toprow, x[, -1])
+})
+
+set.alignment("left")
+pander(mult_site_tbl[, -1])
 ```
 
 
-Overall, during extremely dry years, rainfall decreased by 68, 75 and 64% in winter, spring and winter & spring, respectively. This may have been driven by extended periods of continuous dry days and a lack of large rainfall (class2 and class3 rain). Below, I demonstrate the distribution of each index and where extreme events fall.
+### Summary figure
 
-
-### Wet day rain
+#### Wet day rain
 ```{r wetday_rain_fig, echo=FALSE, fig.width=6, fig.height=4}
-p_wetday_rain
+p_wetday_rain$yr100
 ```
 
 
-### Max daily rain
+#### Max daily rain
 ```{r max_rain_fig, echo=FALSE, fig.width=6, fig.height=4}
-p_max_rain
+p_max_rain$yr100
 ```
 
 
-### No. of dry days
+#### No. of dry days
 ```{r no_drydays_fig, echo=FALSE, fig.width=6, fig.height=4}
-p_n_dryday
+p_n_dryday$yr100
 ```
 
-### No. of wet days
+#### No. of wet days
 ```{r no_wetdays_fig, echo=FALSE, fig.width=6, fig.height=4}
-p_n_wetday
+p_n_wetday$yr100
 ```
 
 
-### Max no. of contiguous duration of dry days
+#### Max no. of contiguous duration of dry days
 ```{r no_contig_dry_fig, echo=FALSE, fig.width=6, fig.height=4}
-p_n_contig_dry
+p_n_contig_dry$yr100
 ```
 
 
-### Max no. of contiguous duration of wet days
+#### Max no. of contiguous duration of wet days
 ```{r no_contig_wet_fig, echo=FALSE, fig.width=6, fig.height=4}
-p_n_contig_wet
+p_n_contig_wet$yr100
 ```
 
 
-### No. of days of each rain class
-```{r rainclass_fig, echo=FALSE, fig.width=6, fig.height=7}
-p_rainclass
+#### No. of days of each rain class
+```{r rainclass_fig, echo=FALSE, fig.width=8, fig.height=9}
+p_rainclass$yr100
 ```
 
 ## Summay of focal sites
-The indices above are summarised in a table for each site as below. 
+The indices above are summarised in a table for each site as below.
 
 ```{r site_tbl, echo=FALSE, results='asis'}
-l <- dlply(ann_rain_800_season_tbl, .(Site.name),  function(x){
-  site <- unique(x[, 1])
+l <- dlply(filter(ann_rain_800_season_tbl, .id == "yr100"), .(Site.name),  function(x){
+  site <- unique(x[, 2])
   print(site)
-  d <- x[, -1]
-  set.alignment("right")
+  d <- x[, -1:-2]
+  set.alignment("left")
   names(d) <- gsub("_", "\n", names(d))
-  pander(d, split.cells = c(15, rep(5, 7)), caption = site)
+  pander(d, caption = site, split.table = Inf, split.cells = c(15, rep(5, 11)))
 })
 
 l[[1]]
@@ -146,7 +227,6 @@ l[[10]]
 l[[11]]
 l[[12]]
 l[[13]]
-
 ```
 
 
