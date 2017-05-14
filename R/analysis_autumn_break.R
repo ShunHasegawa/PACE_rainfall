@@ -3,15 +3,6 @@
 # prepare data frame ------------------------------------------------------
 
 
-# data frames for 10, 30 and 10 years
-ann_rain_800_30yr <- filter(ann_rain_800, Year >= 1987)  # 30yr
-ann_rain_800_10yr <- filter(ann_rain_800, Year >= 2007)  # 10yr
-ann_rain_800_l <- list(yr100 = ann_rain_800,
-                       yr30  = ann_rain_800_30yr,
-                       yr10  = ann_rain_800_10yr) 
-ann_rain_800_all <- ldply(ann_rain_800_l)
-
-
 # driest years  
 driest_yr_d <- ann_rain_800_all %>% 
   group_by(.id, Site.name, Year) %>% 
@@ -36,7 +27,7 @@ autbreak <- ddply(ann_rain_800_all, .(.id, Site.name), function(y){
 
 
 autbreak_ed <- autbreak %>%
-  filter(Month %in% c(4:6)) %>% 
+  filter(Month %in% c(5:6)) %>% 
   mutate(trigger = rain > 0 & trigger_5d >= 30 & topup_30d >= 20) %>%  # condition for triggering day (Rd5 > 30 and Rd30 > 20)
   filter(trigger) %>% 
   group_by(.id, Site.name, Year) %>% 
@@ -53,12 +44,17 @@ autbreak_ed <- autbreak %>%
 # figure ------------------------------------------------------------------
 
 
-fig_autbreak_scatter <- ggplot(autbreak_ed, aes(x = Year, y = day_n))+
-  geom_point(aes(col = driest_yr))+
-  facet_grid(Site.name ~ .id, scales = "free_x")+
-  scale_color_manual("Dry-year", values = c(2, 3, 4, 5, 6, "gray"))+
-  labs(y = "No. of days from April to June")+
-  ggtitle("Autumn break rainfall date: Trigger(5d)≥30mm, Topup(30d)≥20mm")
+fig_autbreak_scatter <- dlply(autbreak_ed, .(.id), function(x){
+  ggplot(autbreak_ed, aes(x = Year, y = day_n))+
+    geom_smooth(method = "lm")+
+    geom_point(aes(col = driest_yr))+
+    facet_wrap(~ Site.name)+
+    scale_color_manual("Dry-year", values = c(2, 3, 4, 5, 6, "gray50"))+
+    labs(y = "No. of days from May to June")+
+    ggtitle(as.character(unique(x$.id)))+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          legend.position = "top")
+})
 
 
 fig_autbreak_box <- ggplot(autbreak_ed, aes(x = .id, y = day_n))+
@@ -66,8 +62,7 @@ fig_autbreak_box <- ggplot(autbreak_ed, aes(x = .id, y = day_n))+
   geom_jitter(data = filter(autbreak_ed, driest_yr != "non-dry"), aes(col = driest_yr))+
   facet_wrap(~ Site.name)+
   scale_color_manual("Dry-year", values = c(2, 3, 4, 5, 6, "gray"))+
-  labs(y = "No. of days from April to June")+
-  ggtitle("Autumn break rainfall date: Trigger(5d)≥30mm, Topup(30d)≥20mm")
+  labs(y = "No. of days from May to June")
 
 
 
@@ -84,6 +79,5 @@ autbreak_smmry <- autbreak_ed %>%
   arrange(Site.name, .id) %>% 
   select(Site.name, .id, `1%`, `5%`, `10%`,`25%`, `50%`, `75%`, `90%`, `95%`, `99%`)
   
-
-
-
+write.csv(autbreak_smmry, file = "Output/Tables/summary_autumnbreak_quntiles.csv", 
+          row.names = FALSE)
