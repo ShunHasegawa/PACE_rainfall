@@ -25,154 +25,75 @@ rain_raw <- ldply(filenames, function(x){
            rain     = Rainfall.amount..millimetres.) %>% 
     mutate(station  = as.character(station),
            date     = as.Date(paste(Year, Month, Day, sep = "-")),
-           rain     = ifelse(is.na(rain), 0, rain)) %>% 
-    # filter(date >= as.Date("1987-1-1") & date <= as.Date("2016-12-31")   # 30yrs
-    filter(date >= as.Date("1917-1-1") & date <= as.Date("2016-12-31") # 100 yrs
-    )
+           rain     = ifelse(is.na(rain), 0, rain))
 }, .progress = "text")
   
 rain_raw <- rain_raw %>% 
   left_join(stations[, c("station", "Site.name")])
 rain_raw$season <- mapvalues(rain_raw$Month, c(1:12), rep(c("summer", "autumn", "winter", "spring"), each = 3))
 
+# raw rain for different years: 100, 30 and 10 yrs
+startday   <- c(yr100 = "1917-1-1", yr30 = "1987-1-1", yr10 = "2007-1-1")
+rain_raw_l <- llply(startday, function(x) filter(rain_raw, date >= as.Date(x) & date <= as.Date("2016-12-31")))
+
 
 # stations with annual rainfall 800 ± 20%
-ann_rain_800 <- rain_raw %>% 
-  group_by(Site.name, Year) %>% 
-  summarise(rain = sum(rain)) %>% 
-  group_by(Site.name) %>% 
-  summarise(ann_rain_avg = mean(rain)) %>% 
-  ungroup() %>% 
-  filter(ann_rain_avg <= 800 * 1.2 & ann_rain_avg >= 800 * .8) %>% 
-  left_join(rain_raw) %>% 
-  mutate(rain_class = cut(rain, breaks = c(0, 1, 5, 20, max(rain)),  # rainfall class: class0 rain <= 1, class1 rain <= 5, class2 rain <=20, class3 rain > 20                          include.lowest = TRUE, right = FALSE, 
-                          labels = paste0("class", 0:3), include.lowest = TRUE,
-                          right = FALSE))
+ann_rain_800_l <- llply(rain_raw_l, function(x){
+  x %>% 
+    group_by(Site.name, Year) %>% 
+    summarise(rain = sum(rain)) %>% 
+    group_by(Site.name) %>% 
+    summarise(ann_rain_avg = mean(rain)) %>% 
+    ungroup() %>% 
+    filter(ann_rain_avg <= 800 * 1.2 & ann_rain_avg >= 800 * .8) %>% 
+    left_join(x) %>% 
+    mutate(rain_class = cut(rain, breaks = c(0, 1, 5, 20, max(rain)),             # rainfall class: class0 rain <= 1, class1 rain <= 5, class2 rain <=20, class3 rain > 20                          include.lowest = TRUE, right = FALSE, 
+                            labels = paste0("class", 0:3), include.lowest = TRUE,
+                            right = FALSE))
   
+})
+
+
+# combine different years of dataset
+ann_rain_800_all <- ldply(ann_rain_800_l)
+
+# create annual and seasonally summary tables
+source("R/fun_create_ann_smmry_tbl.R")
+ann_smmry_l <- llply(ann_rain_800_l, create_ann_smmry_tbl)
+write.csv(ldply(ann_smmry_l), file = "Output/Tables/summary_ann_rain.csv",
+          row.names = FALSE)
 
 
 
-# create annual and seasonally summary ------------------------------------
+# . add different classification of seasons -------------------------------
 
 
-# . 1. annual -------------------------------------------------------------
-
-# annual summary
-ann_smmry <- ann_rain_800 %>% 
-  group_by(Site.name, Year) %>% 
-  summarise(rain = sum(rain)) %>% 
-  group_by(Site.name) %>%
-  summarise_each(funs(avg. = mean, std. = sd), rain) %>% 
-  mutate(unit = "mm yr-1", cov. = round(std./avg., 2), season = "annual") %>% 
-  mutate_each(funs(round(., 0)), avg., std.) %>% 
-  select(Site.name, unit, everything())
-
-# annual dry summary  
-ann_smmry_dry <- ann_rain_800 %>% 
-  group_by(Site.name, Year) %>% 
-  summarise(rain = sum(rain)) %>% 
-  arrange(Site.name, rain) %>% 
-  group_by(Site.name) %>% 
-  mutate(rain_rank = 1:n(),
-         driest_yr = paste0("driest_yr", rain_rank)) %>% 
-  filter(rain_rank <= 5) %>% 
-  ungroup() %>% 
-  left_join(ann_smmry) %>% 
-  mutate(dry_rate = round((rain/avg. - 1) * 100, 0),
-         dryrain_yr = paste0(Year, "(",round(rain, 0), "mm,", dry_rate, "%)")) %>% 
-  select(Site.name, driest_yr, dryrain_yr) %>% 
-  spread(driest_yr, dryrain_yr) %>% 
-  left_join(ann_smmry) %>%
-  select(season, Site.name, unit, avg., std., cov., everything())
+# wint&spring combined data
+ann_rain_800_all_sw <- ann_rain_800_all %>%                 
+  filter(season %in% c("spring", "winter")) %>% 
+  mutate(season = "W_S")
 
 
-# . 2. seasonal summary ---------------------------------------------------
-  
-
-# seasonal summary
-ssn_smmry <- ann_rain_800 %>% 
-  group_by(Site.name, Year, season) %>% 
-  summarise(rain = sum(rain)) %>% 
-  group_by(Site.name, season) %>%
-  summarise_each(funs(avg. = mean, std. = sd), rain) %>% 
-  mutate(unit = "mm yr-1", cov. = round(std./avg., 2)) %>% 
-  mutate_each(funs(round(., 0)), avg., std.)
+# May and June data
+ann_rain_800_all_mj <- ann_rain_800_all %>% 
+  filter(Month %in% c(5, 6)) %>% 
+  mutate(season = month.abb[Month])
 
 
-# seasonal dry summary
-ssn_smmry_dry <- ann_rain_800 %>% 
-  group_by(Site.name, Year, season) %>% 
-  summarise(rain = sum(rain)) %>% 
-  arrange(season, Site.name, rain) %>% 
-  group_by(season, Site.name) %>% 
-  mutate(rain_rank = 1:n(),
-         driest_yr = paste0("driest_yr", rain_rank)) %>% 
-  filter(rain_rank <= 5) %>% 
-  ungroup() %>% 
-  left_join(ssn_smmry) %>% 
-  mutate(dry_rate = round((rain/avg. - 1) * 100, 0),
-         dryrain_yr = paste0(Year, "(",round(rain, 0), "mm,", dry_rate, "%)")) %>% 
-  select(season,Site.name, driest_yr, dryrain_yr) %>% 
-  spread(driest_yr, dryrain_yr) %>% 
-  left_join(ssn_smmry) %>%
-  select(season, Site.name, unit, avg., std., cov., everything())
+# merge the above
+ann_rain_800_all_ssn <- ann_rain_800_all %>% 
+  bind_rows(ann_rain_800_all_sw) %>% 
+  bind_rows(ann_rain_800_all_mj) %>% 
+  mutate(season = factor(season, c("spring", "summer", "autumn", "winter", "W_S", "May", "Jun")))
 
 
 
-
-# . 3. May/June summary ---------------------------------------------------
-
-
-# May/June summary 
-mj_smmry <- ann_rain_800 %>%
-  filter(Month %in% c(5, 6)) %>%
-  mutate(Month = month.abb[Month]) %>% 
-  group_by(Site.name, Year, Month) %>% 
-  summarise(rain = sum(rain)) %>% 
-  group_by(Site.name, Month) %>%
-  summarise_each(funs(avg. = mean, std. = sd), rain) %>% 
-  mutate(unit = "mm yr-1", cov. = round(std./avg., 2)) %>% 
-  mutate_each(funs(round(., 0)), avg., std.)
-
-
-
-# May/June dry summary
-mj_smmry_dry <- ann_rain_800 %>%
-  filter(Month %in% c(5, 6)) %>%
-  mutate(Month = month.abb[Month]) %>% 
-  group_by(Site.name, Year, Month) %>% 
-  summarise(rain = sum(rain)) %>% 
-  arrange(Month, Site.name, rain) %>% 
-  group_by(Month, Site.name) %>% 
-  mutate(rain_rank = 1:n(),
-         driest_yr = paste0("driest_yr", rain_rank)) %>% 
-  filter(rain_rank <= 5) %>% 
-  ungroup() %>% 
-  left_join(mj_smmry) %>% 
-  mutate(dry_rate = round((rain/avg. - 1) * 100, 0),
-         dryrain_yr = paste0(Year, "(",round(rain, 0), "mm,", dry_rate, "%)")) %>% 
-  select(Month,Site.name, driest_yr, dryrain_yr) %>% 
-  spread(driest_yr, dryrain_yr) %>% 
-  left_join(mj_smmry) %>%
-  mutate(season = Month) %>%
-  select(-Month) %>% 
-  select(season, Site.name, unit, avg., std., cov., everything())
-
-
-# . 4. merge the above ----------------------------------------------------
-
-
-ann_snn_smmry <- bind_rows(ann_smmry_dry, ssn_smmry_dry, mj_smmry_dry) %>% 
-  mutate(season = factor(season, levels = c("annual", "spring", "summer", "autumn", "winter", "May", "Jun"))) %>% 
-  arrange(season, Site.name)
-
-  
 
 # station map -------------------------------------------------------------
 
 
 # station map
-station_800 <- ann_rain_800 %>% 
+station_800 <- ann_rain_800_l$yr100 %>% 
   select(station, ann_rain_avg) %>%
   distinct() %>% 
   left_join(stations)
@@ -188,211 +109,18 @@ mapPoints <- ggmap(map) +
 mapPoints
 
 
-# ann_rain_800 for combined winter and spring
-ann_rain_800_sw <- ann_rain_800 %>% 
-  filter(season %in% c("spring", "winter")) %>% 
-  mutate(season = "W_S") %>% 
-  bind_rows(ann_rain_800) %>% 
-  mutate(season = factor(season, levels = c("winter", "spring", "W_S")))
-
 
 
 # compute summary data for each station and season ------------------------
 
-
-ann_rain_800_season_smmry <- dlply(filter(ann_rain_800_sw, season %in% c("spring", "winter", "W_S")), .(Site.name, season), function(x){
-  
-  d1 <- x
-  
-  # . prepare data frames ---------------------------------------------------
-  
-  
-  # seasonal rainfall and extreme years
-  d1_season_avg <- d1 %>% 
-    group_by(Year) %>% 
-    summarise_each(funs(seas_rain = sum(.), dry_d = sum(. == 0), wet_d = sum(. != 0), 
-                        max_wet = max(.)), 
-                   rain) %>% 
-    mutate(seas_extreme = ifelse(seas_rain <= quantile(seas_rain, probs = 0), TRUE, FALSE))
-  
-  ## extreme years
-  d1_extr <- d1_season_avg %>% 
-    filter(seas_extreme) %>% 
-    select(Year, seas_extreme)
-  
-  
-  ## wet day rainfall
-  d1_wetrain_avg <- d1 %>% 
-    filter(rain > 0) %>% 
-    group_by(Year) %>% 
-    summarise(wetday_rain = mean(rain)) %>% 
-    ungroup() %>% 
-    left_join(d1_extr) %>% 
-    mutate(seas_extreme = ifelse(is.na(seas_extreme), FALSE, seas_extreme))
-  
-  
-  ## frequency of each rain class
-  d1_rainclass <- d1 %>%
-    group_by(Year, rain_class) %>% 
-    summarise(no = n()) %>% 
-    right_join(expand.grid(Year = unique(.$Year), rain_class = unique(.$rain_class))) %>%  # include non-observed rain_class as 0
-    ungroup() %>% 
-    mutate(no = ifelse(is.na(no), 0, no)) %>% 
-    left_join(d1_extr) %>% 
-    mutate(seas_extreme = ifelse(is.na(seas_extreme), FALSE, seas_extreme))
-  
-  
-  ## Max contiguous duration of wet (dry) days
-  cont_d <- vector()
-  cont_d[1] <- 1
-  for(i in 2:nrow(d1)){
-    twoval <- c(d1$rain[i - 1], d1$rain[i])
-    if(all(twoval == 0)|all(twoval > 0)){
-      cont_d[i] <- cont_d[i - 1]
-    } else {
-      cont_d[i] <- cont_d[i - 1] + 1
-    }
-  }
-  
-  d1_contig_day <- d1 %>% 
-    mutate(cont_d = cont_d,
-           wetday = ifelse(rain > 0, "wet", "dry")) %>% 
-    group_by(Year, cont_d, wetday) %>% 
-    summarise(freq = n()) %>% 
-    group_by(Year, wetday) %>% 
-    summarise(max_freq = max(freq)) %>% 
-    right_join(expand.grid(Year = unique(.$Year), wetday = unique(.$wetday))) %>% 
-    ungroup() %>% 
-    mutate(max_freq = ifelse(is.na(max_freq), 0, max_freq)) %>% 
-    left_join(d1_extr) %>% 
-    mutate(seas_extreme = ifelse(is.na(seas_extreme), FALSE, seas_extreme))
-  
-  
-  
-  
-  # . summary ----------------------------------------------------------------
-  
-  
-  # number of yrs
-  n_ext <- sum(d1_extr$seas_extreme)
-  n_all <- data.frame(variable = "No. yr",
-                      unit = "yr",
-                      extreme = as.character(n_ext),
-                      overall = as.character(length(unique(d1_season_avg$Year))))
-  
-  
-  # seasonal rainfall
-  d1_season_avg_all <- d1_season_avg %>%
-    summarise_each(funs(avg. = mean, std. = sd, cov. = sd(.)/mean(.)), seas_rain, dry_d, wet_d, max_wet) %>% 
-    mutate(type = "overall")
-  
-  d1_season_avg_extr <- d1_season_avg %>%
-    filter(seas_extreme) %>% 
-    summarise_each(funs(avg. = mean, std. = sd, cov. = sd(.)/mean(.)), seas_rain, dry_d, wet_d, max_wet) %>% 
-    mutate(type = "extreme")
-  
-  d1_season_avg_smmry <- rbind(d1_season_avg_all, d1_season_avg_extr) %>%
-    mutate_each(funs(as.character(round(., 2))), -type) %>% 
-    gather(key = variable, value, -type) %>% 
-    spread(key = type, value) %>% 
-    mutate(unit = car::recode(factor(variable), 
-                              'c("dry_d_avg.", "wet_d_avg.", "dry_d_std.", "wet_d_std.")        = "d yr-1";
-                              c("max_wet_avg.", "max_wet_std.")                               = "mm d-1";
-                              c("seas_rain_avg.", "seas_rain_std.")                           = "mm yr-1";
-                              c("dry_d_cov.", "wet_d_cov.", "max_wet_cov.", "seas_rain_cov.") = "-"'),
-           extreme = ifelse(is.na(extreme), "-", extreme)) %>% 
-    select(variable, unit, overall, extreme) %>% 
-    arrange(unit, variable)
-  
-  
-  # wet day rain
-  d1_wetrain_avg_all <- d1_wetrain_avg %>% 
-    summarise_each(funs(avg. = mean, std. = sd), wetday_rain = wetday_rain) %>%
-    mutate(type = "overall")
-  
-  d1_wetrain_avg_extr <- d1_wetrain_avg %>% 
-    filter(seas_extreme) %>% 
-    summarise_each(funs(avg. = mean, std. = sd), wetday_rain = wetday_rain) %>%
-    mutate(type = "extreme")
-  
-  d1_wetrain_avg_smmry <- rbind(d1_wetrain_avg_all, d1_wetrain_avg_extr) %>% 
-    mutate_each(funs(as.character(round(., 2))), -type) %>% 
-    gather(key = variable, value, -type) %>% 
-    spread(key = type, value) %>% 
-    mutate(unit = "mm d-1",
-           extreme = ifelse(is.na(extreme), "-", extreme))
-  
-  
-  # rain class
-  d1_rainclass_all <- d1_rainclass %>% 
-    group_by(rain_class) %>% 
-    summarise_each(funs(avg. = mean, std. = sd), no) %>% 
-    mutate(type = "overall")
-  
-  d1_rainclass_extr <- d1_rainclass %>% 
-    filter(seas_extreme) %>% 
-    group_by(rain_class) %>% 
-    summarise_each(funs(avg. = mean, std. = sd), no) %>% 
-    mutate(type = "extreme")
-  
-  
-  d1_rainclass_smmry <- rbind(d1_rainclass_all, d1_rainclass_extr) %>% 
-    mutate_each(funs(as.character(round(., 0))), -rain_class, -type) %>% 
-    gather(variable, value, -rain_class, -type) %>% 
-    mutate(variable = paste(rain_class, variable, sep = "_")) %>% 
-    select(-rain_class) %>% 
-    spread(type, value) %>% 
-    mutate(unit = "d yr-1",
-           extreme = ifelse(is.na(extreme), "-", extreme))
-  
-  
-  
-  # max. contiguous days
-  d1_contig_day_all <- d1_contig_day %>% 
-    group_by(wetday) %>% 
-    summarise_each(funs(avg. = mean, std. = sd), max_contig = max_freq) %>% 
-    mutate(type = "overall")
-  
-  d1_contig_day_extr <- d1_contig_day %>% 
-    filter(seas_extreme) %>% 
-    group_by(wetday) %>% 
-    summarise_each(funs(avg. = mean, std. = sd), max_contig = max_freq) %>% 
-    mutate(type = "extreme")
-  
-  d1_contig_day_smmry <- rbind(d1_contig_day_all, d1_contig_day_extr) %>%
-    mutate_each(funs(as.character(round(., 0))), starts_with("max_")) %>% 
-    gather(key = variable, value, starts_with("max_")) %>% 
-    mutate(variable = paste(wetday, variable, sep = "_"))%>% 
-    select(-wetday) %>% 
-    spread(type, value) %>% 
-    mutate(unit = ifelse(grepl("yrs", variable), "yr", "d yr-1"),
-           extreme = ifelse(is.na(extreme), "-", extreme)) %>% 
-    select(variable, unit, overall, extreme)
-  
-  
-  # focal years
-  yr_smmry <- data.frame(
-    variable = "Year",
-    unit     = "yr",
-    overall  = paste(range(d1$Year), collapse = "-"),
-    extreme = paste(d1_extr$Year, collapse = ", "))
-  
-  # summary table
-  d1_smmry <- rbind.fill(d1_season_avg_smmry, d1_wetrain_avg_smmry, d1_rainclass_smmry, d1_contig_day_smmry, yr_smmry) %>% 
-    arrange(unit) %>% 
-    bind_rows(n_all)
-  
-  
-  d1_list <- list(summary_tbl = d1_smmry, season_rain = d1_season_avg,
-                  wetday_rain = d1_wetrain_avg, contig_day = d1_contig_day, 
-                  rainclass = d1_rainclass, focal_yr = yr_smmry)
-  
-  return(d1_list)
-  
-})
-
-
-
+source("R/fun_create_ssn_smmry_tbl.R")
+ann_rain_800_season_smmry <- dlply(filter(ann_rain_800_all_ssn, season %in% 
+                                            c("spring", "winter", "W_S", "May", "Jun")),  
+                                   .(.id, Site.name, season), 
+                                   function(x){
+                                     print(distinct(select(x, .id, Site.name, season)))
+                                     create_ssn_smmry_tbl(seasonalrain_data = x)
+                                   })
 
 # Summary tbl -----------------------------------------------------------------
 
@@ -402,8 +130,9 @@ ann_rain_800_season_tbl <- ldply(ann_rain_800_season_smmry, function(x) x$summar
   mutate(ntype = paste(season, type, sep = "_")) %>% 
   select(-season, -type) %>% 
   spread(ntype, value) %>% 
-  arrange(Site.name, unit) %>% 
-  select(Site.name, variable, unit, starts_with("winter"), starts_with("spring"), starts_with("W_S")) %>% 
+  arrange(.id, Site.name, unit) %>% 
+  select(.id, Site.name, variable, unit, starts_with("winter"), starts_with("spring"), starts_with("W_S"), 
+         starts_with("May"), starts_with("Jun")) %>% 
   mutate(variable = mapvalues(variable, 
                               c("class0_avg.", "class1_avg.", "class2_avg.", "class3_avg.",
                                 "class0_std.", "class1_std.", "class2_std.", "class3_std.",
@@ -445,14 +174,13 @@ ann_rain_800_season_tbl <- ldply(ann_rain_800_season_smmry, function(x) x$summar
 
 
 
+
 # Figures -----------------------------------------------------------------
 
 
 all_season_rain     <- ldply(ann_rain_800_season_smmry, function(x) x$season_rain)
-all_season_rain_ext <- filter(all_season_rain, seas_extreme)
 
 all_wetday_rain     <- ldply(ann_rain_800_season_smmry, function(x) x$wetday_rain)
-all_wetday_rain_ext <- filter(all_wetday_rain, seas_extreme)
 
 all_contig_day      <- ldply(ann_rain_800_season_smmry, function(x) x$contig_day)
 all_contig_day_ext  <- filter(all_contig_day, seas_extreme) 
@@ -466,95 +194,118 @@ all_rainclass_ext   <- filter(all_rainclass, seas_extreme)
 # . 1. seasonal rain ---------------------------------------------------------------
 
 
-p_rain <- ggplot()+
-  geom_boxplot(data = all_season_rain, aes(x = Site.name, y = seas_rain))+
-  geom_point(data = all_season_rain_ext, aes(x = Site.name, y = seas_rain), col = "red")+
-  facet_wrap( ~ season) +
-  labs(y = expression(Precipitation~(mm~yr^'-1')), x = "Site") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
+p_rain <- dlply(all_season_rain, .(.id), function(x){
+  ggplot()+
+    geom_boxplot(data = x, aes(x = Site.name, y = seas_rain))+
+    geom_point(data = filter(x, seas_extreme), aes(x = Site.name, y = seas_rain), col = "red")+
+    facet_wrap( ~ season, scales = "free_y") +
+    labs(y = expression(Precipitation~(mm~yr^'-1')), x = "Site") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))+
+    ggtitle(unique(x$.id))
+})
 
 
 # . 2. wet day rain ---------------------------------------------------------------
 
 
-p_wetday_rain <- ggplot()+
-  geom_boxplot(data = all_wetday_rain, aes(x = Site.name, y = wetday_rain))+
-  geom_point(data = all_wetday_rain_ext, aes(x = Site.name, y = wetday_rain), col = "red")+
-  facet_wrap( ~ season) +
-  labs(y = expression(Wet~day~precipitation~(mm~d^'-1')), x = "Site") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
-
+p_wetday_rain <- dlply(all_wetday_rain, .(.id), function(x){
+  ggplot()+
+    geom_boxplot(data = x, aes(x = Site.name, y = wetday_rain))+
+    geom_point(data = filter(x, seas_extreme), aes(x = Site.name, y = wetday_rain), col = "red")+
+    facet_wrap( ~ season, scales = "free_y") +
+    labs(y = expression(Wet~day~precipitation~(mm~d^'-1')), x = "Site") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6)) +
+    ggtitle(unique(x$.id))
+  
+})
+  
+  
 
 # . 3. No. of wet days ----------------------------------------------------
 
 
-p_n_wetday <- ggplot()+
-  geom_boxplot(data = all_season_rain, aes(x = Site.name, y = wet_d))+
-  geom_point(data = all_season_rain_ext, aes(x = Site.name, y = wet_d), col = "red")+
-  facet_wrap( ~ season) +
-  labs(y = expression(No[.]~of~wet~days~(d~yr^'-1')), x = "Site") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
+p_n_wetday <- dlply(all_season_rain, .(.id), function(x){
+  ggplot()+
+    geom_boxplot(data = x, aes(x = Site.name, y = wet_d))+
+    geom_point(data = filter(x, seas_extreme), aes(x = Site.name, y = wet_d), col = "red")+
+    facet_wrap( ~ season, scales = "free_y") +
+    labs(y = expression(No[.]~of~wet~days~(d~yr^'-1')), x = "Site") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))+
+    ggtitle(unique(x$.id))
+  })
 
 
 
 # . 4. No. of dry days ----------------------------------------------------
 
 
-p_n_dryday <- ggplot()+
-  geom_boxplot(data = all_season_rain, aes(x = Site.name, y = dry_d))+
-  geom_point(data = all_season_rain_ext, aes(x = Site.name, y = dry_d), col = "red")+
-  facet_wrap( ~ season) +
-  labs(y = expression(No[.]~of~dry~days~(d~yr^'-1')), x = "Site") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
+p_n_dryday <- dlply(all_season_rain, .(.id), function(x){
+  ggplot()+
+    geom_boxplot(data = x, aes(x = Site.name, y = dry_d))+
+    geom_point(data = filter(x, seas_extreme), aes(x = Site.name, y = dry_d), col = "red")+
+    facet_wrap( ~ season, scales = "free_y") +
+    labs(y = expression(No[.]~of~dry~days~(d~yr^'-1')), x = "Site") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))+
+    ggtitle(unique(x$.id))
+})
 
 
 
 # . 5. Max No. of contiguous wet days -------------------------------------
 
 
-p_n_contig_wet <- ggplot()+
-  geom_boxplot(data = filter(all_contig_day, wetday == "wet"), aes(x = Site.name, y = max_freq))+
-  geom_point(data = filter(all_contig_day_ext, wetday == "wet"), aes(x = Site.name, y = max_freq), col = "red")+
-  facet_wrap( ~ season) +
-  labs(y = expression(Max[.]~No[.]~of~contiguous~wet~days~(d~yr^'-1')), x = "Site") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
+p_n_contig_wet <- dlply(all_contig_day, .(.id), function(x){
+  ggplot()+
+    geom_boxplot(data = filter(x, wetday == "wet"), aes(x = Site.name, y = max_freq))+
+    geom_point(data = filter(x, seas_extreme & wetday == "wet"), aes(x = Site.name, y = max_freq), col = "red")+
+    facet_wrap( ~ season, scales = "free_y") +
+    labs(y = expression(Max[.]~No[.]~of~contiguous~wet~days~(d~yr^'-1')), x = "Site") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))+
+    ggtitle(unique(x$.id))
+  })
 
 
 
 # . 6. Max No. of contiguous dry days -------------------------------------
 
 
-p_n_contig_dry <- ggplot()+
-  geom_boxplot(data = filter(all_contig_day, wetday == "dry"), aes(x = Site.name, y = max_freq))+
-  geom_point(data = filter(all_contig_day_ext, wetday == "dry"), aes(x = Site.name, y = max_freq), col = "red")+
-  facet_wrap( ~ season) +
-  labs(y = expression(Max[.]~No[.]~of~contiguous~dry~days~(d~yr^'-1')), x = "Site") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
-
+p_n_contig_dry <- dlply(all_contig_day, .(.id), function(x){
+  ggplot()+
+    geom_boxplot(data = filter(x, wetday == "dry"), aes(x = Site.name, y = max_freq))+
+    geom_point(data = filter(x, seas_extreme & wetday == "dry"), aes(x = Site.name, y = max_freq), col = "red")+
+    facet_wrap( ~ season, scales = "free_y") +
+    labs(y = expression(Max[.]~No[.]~of~contiguous~dry~days~(d~yr^'-1')), x = "Site") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))+
+    ggtitle(unique(x$.id))
+})
 
 
 # . 7. Maximum wet day events ---------------------------------------------
 
 
-p_max_rain <- ggplot()+
-  geom_boxplot(data = all_season_rain, aes(x = Site.name, y = max_wet))+
-  geom_point(data = all_season_rain_ext, aes(x = Site.name, y = max_wet), col = "red")+
-  facet_wrap( ~ season) +
-  labs(y = expression(Max~precipitation~(mm~d^'-1')), x = "Site") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
-
+p_max_rain <- dlply(all_season_rain, .(.id), function(x){
+  ggplot()+
+    geom_boxplot(data = x, aes(x = Site.name, y = max_wet))+
+    geom_point(data = filter(x, seas_extreme), aes(x = Site.name, y = max_wet), col = "red")+
+    facet_wrap( ~ season, scales = "free_y") +
+    labs(y = expression(Max~precipitation~(mm~d^'-1')), x = "Site") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))+
+    ggtitle(unique(x$.id))
+})
 
 
 # . 8. No. of days for each rainfall class --------------------------------
-
-
-p_rainclass <- ggplot()+
-  geom_boxplot(data = all_rainclass, aes(x = Site.name, y = no))+
-  geom_point(data = all_rainclass_ext, aes(x = Site.name, y = no), col = "red")+
-  facet_grid(rain_class2 ~ season, scale = "free_y") +
-  labs(y = expression(Frequency~(d~yr^'-1')), x = "Site") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
-
+p_rainclass <- dlply(all_rainclass, .(.id), function(x){
+  d <- x %>% 
+    mutate(rs = rain_class2:season)
+  ggplot()+
+    geom_boxplot(data = d, aes(x = Site.name, y = no))+
+    geom_point(data = filter(d, seas_extreme), aes(x = Site.name, y = no), col = "red")+
+    facet_wrap( ~ rs, scale = "free_y") +
+    labs(y = expression(Frequency~(d~yr^'-1')), x = "Site") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))+
+    ggtitle(unique(d$.id))
+})
   
 
 
@@ -562,19 +313,29 @@ p_rainclass <- ggplot()+
 
 # ratios of variables between extreme and overall (magnitude of extreme events)
 mult_site_smmry <- ann_rain_800_season_tbl %>% 
-  filter(variable != "St. dev. wet day rain") %>%
-  mutate_each(funs(as.numeric), starts_with("winter"), starts_with("spring"), starts_with("W_S")) %>% 
-  group_by(variable) %>% 
-  summarise_each(funs(Avg. = mean(., na.rm = TRUE), 
-                      N = get_n), starts_with("winter"), starts_with("spring"), starts_with("W_S")) %>% 
+  filter(!variable %in% c("St. dev. wet day rain", "No. yr", "Year")) %>%
+  mutate_each(funs(as.numeric), starts_with("winter"), starts_with("spring"), 
+              starts_with("W_S"), starts_with("May"), starts_with("Jun")) %>% 
+  group_by(.id, variable) %>% 
+  summarise_each(funs(Avg. = mean(., na.rm = TRUE), N = get_n), 
+                 starts_with("winter"), starts_with("spring"), starts_with("W_S"), 
+                 starts_with("May"), starts_with("Jun")) %>% 
   ungroup() %>% 
-  transmute(variable, 
+  transmute(.id, variable, 
             mag.extrm_winter = winter_extreme_Avg. / winter_overall_Avg. - 1, 
             mag.extrm_spring = spring_extreme_Avg. / spring_overall_Avg. - 1,
             mag.extrm_w_s    = W_S_extreme_Avg. / W_S_overall_Avg. - 1,
-             no_site    = winter_extreme_N) %>% 
+            mag.extrm_May     = May_extreme_Avg. / May_overall_Avg. - 1,
+            mag.extrm_Jun     = Jun_extreme_Avg. / Jun_overall_Avg. - 1,
+            no_site          = winter_extreme_N) %>% 
   mutate_each(funs(round(., 2)), starts_with("mag"))
+write.csv(ann_rain_800_season_tbl, file = "Output/Tables/rain_characterisation.csv",
+          row.names = FALSE)
 
+
+
+# autumn break ------------------------------------------------------------
+source("R/analysis_autumn_break.R")
 
 
 # save --------------------------------------------------------------------
