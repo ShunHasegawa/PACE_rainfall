@@ -37,7 +37,7 @@ pander(r_tbls)
 
 
 
-### Annual and seasonal summary table (mm yr^-1^): annual, spring, summer, autumn, winter, May and June
+### Annual and seasonal summary table (mm yr^-1^): annual, spring, summer, autumn, winter, May and June: Year(precipitaiton, %reduction compared to a long-term average value)
 
 ```{r ann_rain_tbl_prepare, echo=FALSE, results='hide'}
 tbl_l <- llply(ann_smmry_l, function(y){
