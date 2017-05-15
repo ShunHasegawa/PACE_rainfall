@@ -88,7 +88,7 @@ p_rain$yr10
 
 
 ## Autumn break
-Atumn break was defined as the first rain date bewteen **May** and **June** that had the total of **≥30mm** rainfall within the following 4 days (i.e. sum of **5 days**) followed by **≥20mm** rainfall within the subsequent **30 days**.  Percent quantiles of the autumn break date are shown in the table below for each site over the past 100, 30 and 10 years. The first day in May (1st May) is Day 1.
+Autumn break was defined as the first rain date between **May** and **June** that had the total of **≥30mm** rainfall within the following 4 days (i.e. sum of **5 days**) followed by **≥20mm** rainfall within the subsequent **30 days**.  Percent quantiles of the autumn break date are shown in the table below for each site over the past 100, 30 and 10 years. The first day in May (1st May) is Day 1.
 
 ### Summary table
 ```{r autumnbreak_tbl, echo=FALSE, results='asis'}
@@ -147,7 +147,7 @@ I characterized the rainfall pattern during extremely dry years using indices be
     + class3 (Rd > 20 mm)
 
 
-Below, I summarize multi-sites data and demonstrate the magnitude of extreme events given as $(x_e-x_a)/x_a$, where $x_e$ and $x_a$ are average values in extreme years and across all years, respectively.
+Below, I summarize multi-site data and demonstrate the magnitude of extreme events given as $(x_e-x_a)/x_a$, where $x_e$ and $x_a$ are average values in extreme years and across all years, respectively.
 
 ### Summary table
 
