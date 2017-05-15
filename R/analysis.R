@@ -96,16 +96,17 @@ ann_rain_800_all_ssn <- ann_rain_800_all %>%
 station_800 <- ann_rain_800_l$yr100 %>% 
   select(station, ann_rain_avg) %>%
   distinct() %>% 
-  left_join(stations)
+  left_join(stations) %>% 
+  mutate(Site.name = factor(Site.name),
+         labels = as.character(as.numeric(Site.name)))
 
 
 map <- get_map(location = 'New South Wales', zoom = 5)
 mapPoints <- ggmap(map) +
-  geom_point(data = station_800, aes(x = Lon, y = Lat, size = ann_rain_avg),
-             alpha = .6, pch = 21, fill = "red")+
-  geom_text(data = station_800, aes(x = Lon, y = Lat, label = substr(Site.name, 1, 3)),
-            size = 3, hjust = -.5, vjust = .1, col = "blue")+
-  scale_size_continuous(name = "Ann. rain (mm)")
+  geom_point(data = station_800, aes(x = Lon, y = Lat),
+             alpha = .6, shape = 1, fill = NA,  size = 3)+
+  geom_text(data = station_800, aes(x = Lon, y = Lat, label = labels),
+            size = 2, col = "red")
 mapPoints
 
 

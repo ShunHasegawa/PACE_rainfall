@@ -27,6 +27,15 @@ Here, I show the analysis of rainfall patterns for the livestock project. Firstl
 mapPoints
 ```
 
+```{r site_cordinate, echo=FALSE, results='asis'}
+r_tbls <- station_800 %>% 
+  select(Site.name, Lat, Lon, STA, labels) %>% 
+  arrange(STA)
+pander(r_tbls)
+  
+```
+
+
 
 ### Annual and seasonal summary table (mm yr^-1^): annual, spring, summer, autumn, winter, May and June
 
