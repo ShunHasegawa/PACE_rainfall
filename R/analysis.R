@@ -49,7 +49,8 @@ ann_rain_800_l <- llply(rain_raw_l, function(x){
     left_join(x) %>% 
     mutate(rain_class = cut(rain, breaks = c(0, 1, 5, 20, max(rain)),             # rainfall class: class0 rain <= 1, class1 rain <= 5, class2 rain <=20, class3 rain > 20                          include.lowest = TRUE, right = FALSE, 
                             labels = paste0("class", 0:3), include.lowest = TRUE,
-                            right = FALSE))
+                            right = FALSE),
+           Site.name = relevel(factor(Site.name), "RICHMOND"))
   
 })
 
@@ -97,7 +98,7 @@ station_800 <- ann_rain_800_l$yr100 %>%
   select(station, ann_rain_avg) %>%
   distinct() %>% 
   left_join(stations) %>% 
-  mutate(Site.name = factor(Site.name),
+  mutate(Site.name = relevel(factor(Site.name), "RICHMOND"),
          labels = as.character(as.numeric(Site.name)))
 
 

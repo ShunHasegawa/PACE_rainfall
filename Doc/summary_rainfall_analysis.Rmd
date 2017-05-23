@@ -21,7 +21,7 @@ load("../Output/Data/all_image.RData")
 ```
 
 ## Introduction
-Here, I show the analysis of rainfall patterns for the livestock project. Firstly, I picked up 13 focal sites which had average annul precipitation = 800 mm ± 20% over the past 100 years from SA, VIC and NSW as below.
+Here, I show the analysis of rainfall patterns for the livestock project. Firstly, I picked up 13 focal sites (and Richmond) which had average annul precipitation = 800 mm ± 20% over the past 100 years from SA, VIC and NSW as below.
 
 ```{r site_map, echo=FALSE, fig.width=6, fig.height=5, fig.cap="Location of analysed sites."}
 mapPoints
@@ -30,7 +30,7 @@ mapPoints
 ```{r site_cordinate, echo=FALSE, results='asis'}
 r_tbls <- station_800 %>% 
   select(Site.name, Lat, Lon, STA, labels) %>% 
-  arrange(STA)
+  arrange(STA, labels)
 pander(r_tbls)
   
 ```
@@ -43,12 +43,12 @@ pander(r_tbls)
 tbl_l <- llply(ann_smmry_l, function(y){
   tbl <- ddply(y, .(season), function(x){
     d <- x[, c(-1,-3)]
+    d$Site.name <- as.character(d$Site.name)
     s <- as.character(unique(x$season))
     s <- paste0("**", s, "**")
     rbind(c(s, rep("", ncol(d) - 1)), d)
   })
   set.alignment("left")
-  ?pandoc.table.return
   pander(tbl[-1], split.table = Inf, split.cells = Inf)
 })
 
@@ -109,16 +109,16 @@ Autumn break dates are plotted against years as below.
 **Temporal change** in the autumn break date with a regression line. The 1-5th driest years are shown with colors and otherwise with grey.
 
 
-```{r autumnbreak_100yr_fig, echo=FALSE, results='asis',  fig.width=6, fig.height=7}
+```{r autumnbreak_100yr_fig, echo=FALSE, results='asis',  fig.width=6, fig.height=7, message=FALSE}
 fig_autbreak_scatter$yr100
 ```
 
-```{r autumnbreak_30yr_fig, echo=FALSE, results='asis',  fig.width=6, fig.height=7}
+```{r autumnbreak_30yr_fig, echo=FALSE, results='asis',  fig.width=6, fig.height=7, message=FALSE}
 fig_autbreak_scatter$yr30+
   theme(legend.position = "none")
 ```
 
-```{r autumnbreak_10yr_fig, echo=FALSE, results='asis',  fig.width=6, fig.height=7}
+```{r autumnbreak_10yr_fig, echo=FALSE, results='asis',  fig.width=6, fig.height=7, message=FALSE}
 fig_autbreak_scatter$yr10+
   theme(legend.position = "none")
 ```
@@ -215,7 +215,7 @@ The indices above are summarised in a table for each site as below.
 
 ```{r site_tbl, echo=FALSE, results='asis'}
 l <- dlply(filter(ann_rain_800_season_tbl, .id == "yr100"), .(Site.name),  function(x){
-  site <- unique(x[, 2])
+  site <- as.character(unique(x[, 2]))
   print(site)
   d <- x[, -1:-2]
   set.alignment("left")
@@ -236,6 +236,7 @@ l[[10]]
 l[[11]]
 l[[12]]
 l[[13]]
+l[[14]]
 ```
 
 
