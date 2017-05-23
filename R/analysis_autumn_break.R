@@ -45,13 +45,14 @@ autbreak_ed <- autbreak %>%
 
 
 fig_autbreak_scatter <- dlply(autbreak_ed, .(.id), function(x){
-  ggplot(autbreak_ed, aes(x = Year, y = day_n))+
+  ggplot(x, aes(x = Year, y = day_n))+
     geom_smooth(method = "lm")+
     geom_point(aes(col = driest_yr))+
     facet_wrap(~ Site.name)+
     scale_color_manual("Dry-year", values = c(2, 3, 4, 5, 6, "gray50"))+
     labs(y = "No. of days from May to June")+
     ggtitle(as.character(unique(x$.id)))+
+    scale_y_continuous(limits = c(0, 60))+
     theme(axis.text.x = element_text(angle = 45, hjust = 1),
           legend.position = "top")
 })
